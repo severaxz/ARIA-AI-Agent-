@@ -15,7 +15,6 @@ SYSTEM_PROMPT = """Ты ARIA — умный, лаконичный ассисте
 Отвечай чётко и по делу. Без лишних слов. 
 Отвечай на языке пользователя."""
 
-# Хранение истории диалога по user_id
 user_histories = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -29,8 +28,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_histories[user_id] = []
 
     user_histories[user_id].append({"role": "user", "content": text})
-
-    # Ограничим историю последними 20 сообщениями
     history = user_histories[user_id][-20:]
 
     try:
@@ -50,10 +47,9 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_histories[user_id] = []
     await update.message.reply_text("История очищена.")
 
-app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("clear", clear))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
 if __name__ == "__main__":
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("clear", clear))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
