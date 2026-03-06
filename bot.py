@@ -2,7 +2,7 @@ import os
 import logging
 import time
 from collections import defaultdict
-from openai import OpenAI
+from openai import OpenAI, AuthenticationError, RateLimitError
 from supabase import create_client
 from telegram import Update, BusinessConnection
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes, TypeHandler
@@ -27,7 +27,7 @@ ALLOWED_USERS: set[int] = set(
 # ── КОНСТАНТЫ БЕЗОПАСНОСТИ ───────────────────────────────────────────
 MAX_MESSAGE_LENGTH = 1000
 MAX_HISTORY        = 20
-RATE_LIMIT_COUNT   = 10
+RATE_LIMIT_COUNT   = 3
 RATE_LIMIT_WINDOW  = 60
 VALID_ROLES        = {"user", "assistant"}
 
@@ -174,7 +174,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1-mini",
             messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history,
             max_tokens=1000,
             temperature=0.85
@@ -183,9 +183,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_message(user_id, "assistant", reply)
         await update.message.reply_text(reply)
 
+    except RateLimitError:
+        await update.message.reply_text("Кончились кредиты OpenAI. Пополни баланс: platform.openai.com/settings/billing")
+    except AuthenticationError:
+        await update.message.reply_text("Неверный API ключ OpenAI.")
     except Exception:
         logger.exception("Ошибка OpenAI user_id=%s", user_id)
-        await update.message.reply_text("Что-то пошло не так. П��пробуй ещё раз.")
+        await update.message.reply_text("Что-то пошло не так. Попробуй ещё раз.")
 
 async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -267,7 +271,7 @@ async def analyze_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1-mini",
             messages=[
                 {"role": "system", "content": ANALYSIS_PROMPT},
                 {"role": "user", "content": f"Проанализируй диалог:\n\n{dialog_text}"}
@@ -277,6 +281,10 @@ async def analyze_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(response.choices[0].message.content)
 
+    except RateLimitError:
+        await update.message.reply_text("Кончились кредиты OpenAI. Пополни баланс: platform.openai.com/settings/billing")
+    except AuthenticationError:
+        await update.message.reply_text("Неверный API ключ OpenAI.")
     except Exception:
         logger.exception("Ошибка анализа chat_id=%s", chat_id)
         await update.message.reply_text("Не удалось проанализировать диалог.")
